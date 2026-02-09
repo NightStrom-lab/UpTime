@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Uptime Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body {
+  background:#111;
+  color:#eee;
+  font-family:Arial, sans-serif;
+  margin:0;
+  padding:20px;
+}
+h1 {
+  text-align:center;
+  font-size:32px;
+}
+.container {
+  max-width:1400px;
+  margin:auto;
+}
+input {
+  width:70%;
+  padding:12px;
+  background:#222;
+  border:1px solid #333;
+  color:#fff;
+  border-radius:6px;
+}
+button {
+  padding:12px 18px;
+  background:#0ff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:bold;
+}
+.status-box {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:10px;
+  margin-top:20px;
+}
+.card {
+  background:#1a1a1a;
+  padding:15px;
+  border-radius:8px;
+  border:1px solid #333;
+}
+.ok { color:#00ff88; }
+.err { color:#ff4444; }
+canvas { margin-top:30px; }
+.log {
+  margin-top:20px;
+  background:#0d0d0d;
+  padding:15px;
+  height:200px;
+  overflow:auto;
+  border-radius:8px;
+  font-size:13px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>🌍 Global Uptime Monitor</h1>
+
+<input id="target" placeholder="https://example.com">
+<button onclick="startCheck()">Start</button>
+
+<div class="status-box" id="statusBox"></div>
+
+<canvas id="chart"></canvas>
+
+<div class="log" id="log"></div>
+
+</div>
+
+<script>
+const countries = [
+"Indonesia","India","China","Japan","Korea","Singapore",
+"USA","UK","Germany","France","Australia","Brazil",
+"Canada","Russia","Netherlands","Sweden","UAE",
+"Malaysia","Thailand","Philippines"
+];
+
+let chart;
+let successCount = 0;
+let totalChecks = 0;
+
+function log(msg){
+  const logBox = document.getElementById("log");
+  logBox.innerHTML += msg + "<br>";
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function initChart(){
+  const ctx = document.getElementById("chart");
+  chart = new Chart(ctx,{
+    type:"line",
+    data:{
+      labels:[],
+      datasets:[{
+        label:"Uptime %",
+        data:[],
+        borderColor:"#0ff",
+        backgroundColor:"rgba(0,255,255,0.1)",
+        fill:true,
+        tension:0.3
+      }]
+    },
+    options:{
+      scales:{
+        y:{ min:0, max:100 }
+      }
+    }
+  });
+}
+
+async function checkSite(url,country,card){
+  try{
+    const start = Date.now();
+    const res = await fetch("/check?url="+encodeURIComponent(url));
+    const data = await res.json();
+    const ms = Date.now() - start;
+
+    totalChecks++;
+    if(data.status === 200) successCount++;
+
+    const uptime = ((successCount/totalChecks)*100).toFixed(2);
+
+    card.innerHTML = `
+      <b>${country}</b><br>
+      Status: <span class="${data.status==200?'ok':'err'}">${data.status}</span><br>
+      Response: ${ms} ms
+    `;
+
+    chart.data.labels.push(new Date().toLocaleTimeString());
+    chart.data.datasets[0].data.push(uptime);
+    if(chart.data.labels.length > 30){
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    chart.update();
+
+    if(data.status != 200){
+      log(`[${country}] ERROR ${data.status}`);
+    }
+
+  }catch(e){
+    card.innerHTML = `<b>${country}</b><br><span class="err">Network Error</span>`;
+    log(`[${country}] ${e.message}`);
+  }
+}
+
+function startCheck(){
+  const url = document.getElementById("target").value;
+  if(!url) return alert("Enter URL");
+
+  document.getElementById("statusBox").innerHTML = "";
+  successCount=0;
+  totalChecks=0;
+
+  initChart();
+
+  countries.forEach(country=>{
+    const card = document.createElement("div");
+    card.className="card";
+    document.getElementById("statusBox").appendChild(card);
+
+    setInterval(()=>{
+      checkSite(url,country,card);
+    },1000);
+  });
+}
+</script>
+
+</body>
+</html>
