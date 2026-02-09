@@ -7,60 +7,61 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body {
-  background:#111;
+  background:#0f0f0f;
   color:#eee;
-  font-family:Arial, sans-serif;
+  font-family:Arial;
   margin:0;
   padding:20px;
 }
-h1 {
-  text-align:center;
-  font-size:32px;
-}
-.container {
-  max-width:1400px;
-  margin:auto;
-}
+h1 { text-align:center; font-size:32px; }
+.container { max-width:1400px; margin:auto; }
+
 input {
   width:70%;
   padding:12px;
-  background:#222;
+  background:#1a1a1a;
   border:1px solid #333;
   color:#fff;
   border-radius:6px;
 }
+
 button {
-  padding:12px 18px;
-  background:#0ff;
+  padding:12px 20px;
+  background:#00ffff;
   border:none;
   border-radius:6px;
   cursor:pointer;
   font-weight:bold;
 }
-.status-box {
+
+.status-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
-  gap:10px;
-  margin-top:20px;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:12px;
+  margin-top:25px;
 }
+
 .card {
   background:#1a1a1a;
   padding:15px;
   border-radius:8px;
   border:1px solid #333;
 }
+
 .ok { color:#00ff88; }
 .err { color:#ff4444; }
-canvas { margin-top:30px; }
+
 .log {
-  margin-top:20px;
-  background:#0d0d0d;
+  margin-top:25px;
+  background:#111;
   padding:15px;
   height:200px;
   overflow:auto;
   border-radius:8px;
   font-size:13px;
 }
+
+canvas { margin-top:30px; }
 </style>
 </head>
 <body>
@@ -69,14 +70,13 @@ canvas { margin-top:30px; }
 <h1>🌍 Global Uptime Monitor</h1>
 
 <input id="target" placeholder="https://example.com">
-<button onclick="startCheck()">Start</button>
+<button onclick="start()">Start</button>
 
-<div class="status-box" id="statusBox"></div>
+<div class="status-grid" id="grid"></div>
 
 <canvas id="chart"></canvas>
 
 <div class="log" id="log"></div>
-
 </div>
 
 <script>
@@ -88,8 +88,8 @@ const countries = [
 ];
 
 let chart;
-let successCount = 0;
-let totalChecks = 0;
+let success = 0;
+let total = 0;
 
 function log(msg){
   const logBox = document.getElementById("log");
@@ -106,77 +106,74 @@ function initChart(){
       datasets:[{
         label:"Uptime %",
         data:[],
-        borderColor:"#0ff",
+        borderColor:"#00ffff",
         backgroundColor:"rgba(0,255,255,0.1)",
         fill:true,
         tension:0.3
       }]
     },
-    options:{
-      scales:{
-        y:{ min:0, max:100 }
-      }
-    }
+    options:{ scales:{ y:{ min:0, max:100 } } }
   });
 }
 
-async function checkSite(url,country,card){
+async function check(url,country,card){
   try{
-    const start = Date.now();
-    const res = await fetch("/check?url="+encodeURIComponent(url));
+    const res = await fetch(`/check?url=${encodeURIComponent(url)}`);
     const data = await res.json();
-    const ms = Date.now() - start;
 
-    totalChecks++;
-    if(data.status === 200) successCount++;
+    total++;
 
-    const uptime = ((successCount/totalChecks)*100).toFixed(2);
+    if(data.status === 200) success++;
 
-    card.innerHTML = `
-      <b>${country}</b><br>
-      Status: <span class="${data.status==200?'ok':'err'}">${data.status}</span><br>
-      Response: ${ms} ms
-    `;
+    const uptime = ((success/total)*100).toFixed(2);
+
+    if(data.status === 200){
+      card.innerHTML = `<b>${country}</b><br>
+      <span class="ok">200 OK</span><br>
+      ${data.responseTime} ms`;
+    } else {
+      card.innerHTML = `<b>${country}</b><br>
+      <span class="err">${data.status}</span><br>
+      ${data.statusText || data.message}`;
+      log(`[${country}] ERROR: ${data.status} ${data.statusText || data.message}`);
+    }
 
     chart.data.labels.push(new Date().toLocaleTimeString());
     chart.data.datasets[0].data.push(uptime);
+
     if(chart.data.labels.length > 30){
       chart.data.labels.shift();
       chart.data.datasets[0].data.shift();
     }
+
     chart.update();
 
-    if(data.status != 200){
-      log(`[${country}] ERROR ${data.status}`);
-    }
-
-  }catch(e){
-    card.innerHTML = `<b>${country}</b><br><span class="err">Network Error</span>`;
+  } catch(e){
+    card.innerHTML = `<b>${country}</b><br>
+    <span class="err">Network Error</span>`;
     log(`[${country}] ${e.message}`);
   }
 }
 
-function startCheck(){
+function start(){
   const url = document.getElementById("target").value;
   if(!url) return alert("Enter URL");
 
-  document.getElementById("statusBox").innerHTML = "";
-  successCount=0;
-  totalChecks=0;
+  document.getElementById("grid").innerHTML="";
+  success=0;
+  total=0;
 
   initChart();
 
   countries.forEach(country=>{
     const card = document.createElement("div");
     card.className="card";
-    document.getElementById("statusBox").appendChild(card);
+    document.getElementById("grid").appendChild(card);
 
-    setInterval(()=>{
-      checkSite(url,country,card);
-    },1000);
+    setInterval(()=> check(url,country,card),1000);
   });
 }
 </script>
 
 </body>
-</html>
+</html></html>
